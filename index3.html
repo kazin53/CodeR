@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moto Racing 3D - Ultimate Edition</title>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #000;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+        }
+
+        #gameCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        .game-ui {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        .hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 120px;
+            background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .score-display {
+            color: #FFD700;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .speed-display {
+            color: #00FF00;
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+
+        .level-display {
+            color: #FF6B6B;
+            font-size: 16px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+
+        .minimap {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 80px;
+            height: 120px;
+            background: rgba(0,0,0,0.7);
+            border: 2px solid #FFD700;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .minimap-road {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(180deg, #333 0%, #222 100%);
+            position: relative;
+        }
+
+        .minimap-player {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 6px;
+            height: 8px;
+            background: #FF4444;
+            border-radius: 2px;
+        }
+
+        .minimap-obstacle {
+            position: absolute;
+            width: 5px;
+            height: 6px;
+            background: #4444FF;
+            border-radius: 1px;
+        }
+
+        .game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            background: linear-gradient(145deg, rgba(0,0,0,0.95), rgba(20,20,20,0.95));
+            color: #fff;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            border: 3px solid #FFD700;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+            transition: transform 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            pointer-events: auto;
+        }
+
+        .game-over.show {
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .game-over h2 {
+            margin-bottom: 20px;
+            color: #FF4444;
+            font-size: 32px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+
+        .final-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 20px 0;
+            font-size: 16px;
+        }
+
+        .stat-item {
+            background: rgba(255,255,255,0.1);
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,215,0,0.3);
+        }
+
+        .restart-btn {
+            background: linear-gradient(145deg, #44FF44, #00CC00);
+            color: #fff;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            pointer-events: auto;
+        }
+
+        .restart-btn:hover {
+            background: linear-gradient(145deg, #55FF55, #00DD00);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+        }
+
+        .controls-hint {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.8);
+            text-align: center;
+            font-size: 14px;
+            background: rgba(0,0,0,0.5);
+            padding: 10px 20px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .boost-indicator {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 120px;
+            height: 20px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .boost-bar {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #FF8C00, #FF4500);
+            transition: width 0.3s ease;
+        }
+
+        .touch-controls {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            height: 100px;
+            display: none;
+            justify-content: space-between;
+            padding: 0 30px;
+            pointer-events: auto;
+        }
+
+        .touch-btn {
+            width: 70px;
+            height: 70px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            backdrop-filter: blur(5px);
+            border: 2px solid rgba(255,255,255,0.3);
+            user-select: none;
+        }
+
+        .boost-btn {
+            background: rgba(255, 69, 0, 0.5);
+            position: absolute;
+            right: 30px;
+            bottom: 120px;
+            width: 60px;
+            height: 60px;
+        }
+
+        @media (max-width: 768px) {
+            .touch-controls {
+                display: flex;
+            }
+            
+            .controls-hint {
+                display: none;
+            }
+            
+            .hud {
+                padding: 15px;
+                height: 100px;
+            }
+            
+            .score-display {
+                font-size: 20px;
+            }
+            
+            .minimap {
+                width: 60px;
+                height: 90px;
+            }
+            
+            .game-over {
+                padding: 30px 20px;
+                width: 90%;
+            }
+            
+            .final-stats {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    
+    <div class="game-ui">
+        <div class="hud">
+            <div class="score-display">
+                <div id="score">Pontos: 0</div>
+                <div class="speed-display" id="speed">Velocidade: 0 km/h</div>
+                <div class="level-display" id="level">Nível: 1</div>
+            </div>
+            
+            <div class="minimap">
+                <div class="minimap-road" id="minimapRoad">
+                    <div class="minimap-player" id="minimapPlayer"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="boost-indicator">
+            <div class="boost-bar" id="boostBar"></div>
+        </div>
+        
+        <div class="game-over" id="gameOver">
+            <h2>🏁 GAME OVER 🏁</h2>
+            <div class="final-stats">
+                <div class="stat-item">
+                    <strong>Pontuação Final</strong><br>
+                    <span id="finalScore">0</span>
+                </div>
+                <div class="stat-item">
+                    <strong>Nível Alcançado</strong><br>
+                    <span id="finalLevel">1</span>
+                </div>
+                <div class="stat-item">
+                    <strong>Velocidade Máxima</strong><br>
+                    <span id="maxSpeed">0</span> km/h
+                </div>
+                <div class="stat-item">
+                    <strong>Obstáculos Evitados</strong><br>
+                    <span id="obstaclesAvoided">0</span>
+                </div>
+            </div>
+            <button class="restart-btn" id="restartBtn">🚀 JOGAR NOVAMENTE</button>
+        </div>
+        
+        <div class="controls-hint">
+            🎮 Use ← → / A D para mover | Espaço para turbo
+        </div>
+        
+        <div class="touch-controls">
+            <div class="touch-btn" id="leftBtn">←</div>
+            <div class="touch-btn" id="rightBtn">→</div>
+            <div class="touch-btn boost-btn" id="boostBtn">⚡</div>
+        </div>
+    </div>
+
+    <script>
+        // Sistema de gerenciamento de jogo com Three.js
+        class GameManager {
+            constructor() {
+                this.initializeThreeJS();
+                this.initializeElements();
+                this.initializeState();
+                this.initializeControls();
+                this.start();
+            }
+
+            initializeThreeJS() {
+                // Configuração da cena Three.js
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x87CEEB);
+                
+                // Configuração da câmera
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.camera.position.set(0, 5, 5);
+                this.camera.lookAt(0, 0, 0);
+                
+                // Configuração do renderizador
+                this.renderer = new THREE.WebGLRenderer({
+                    canvas: document.getElementById('gameCanvas'),
+                    antialias: true
+                });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true;
+                
+                // Luzes
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+                this.scene.add(ambientLight);
+                
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                directionalLight.position.set(0, 10, 5);
+                directionalLight.castShadow = true;
+                directionalLight.shadow.mapSize.width = 2048;
+                directionalLight.shadow.mapSize.height = 2048;
+                this.scene.add(directionalLight);
+                
+                // Pista
+                this.createTrack();
+                
+                // Moto do jogador
+                this.createPlayerMotorcycle();
+                
+                // Obstáculos pool
+                this.obstacleTextures = [];
+                this.obstaclesPool = [];
+                this.loadObstacleTextures().then(() => {
+                    this.createObstaclesPool();
+                }).catch(error => {
+                    console.error("Erro ao carregar texturas de obstáculos:", error);
+                });
+                
+                // Efeitos
+                this.particles = [];
+                this.createParticles();
+                
+                // Configuração de redimensionamento
+                window.addEventListener('resize', () => this.onWindowResize());
+            }
+            
+            // --- CÓDIGO INALTERADO DA PISTA E LUZES ---
+            
+            createTrack() {
+                // Pista principal
+                const trackGeometry = new THREE.PlaneGeometry(20, 1000, 10, 100);
+                const trackMaterial = new THREE.MeshStandardMaterial({ 
+                    color: 0x333333,
+                    side: THREE.DoubleSide
+                });
+                this.track = new THREE.Mesh(trackGeometry, trackMaterial);
+                this.track.rotation.x = -Math.PI / 2;
+                this.track.position.y = -0.1;
+                this.track.receiveShadow = true;
+                this.scene.add(this.track);
+                
+                // Linhas da pista
+                const lineGeometry = new THREE.BoxGeometry(0.5, 0.1, 5);
+                const lineMaterial = new THREE.MeshStandardMaterial({ color: 0xFFD700 });
+                
+                for (let i = -500; i < 500; i += 10) {
+                    const line = new THREE.Mesh(lineGeometry, lineMaterial);
+                    line.position.z = i;
+                    line.position.y = 0;
+                    this.scene.add(line);
+                }
+                
+                // Barreiras laterais
+                const barrierGeometry = new THREE.BoxGeometry(0.5, 0.5, 1000);
+                const barrierMaterial = new THREE.MeshStandardMaterial({ 
+                    color: 0xFF4444,
+                    emissive: 0x880000,
+                    emissiveIntensity: 0.2
+                });
+                
+                this.leftBarrier = new THREE.Mesh(barrierGeometry, barrierMaterial);
+                this.leftBarrier.position.x = -5;
+                this.leftBarrier.position.z = 0;
+                this.leftBarrier.castShadow = true;
+                this.leftBarrier.receiveShadow = true;
+                this.scene.add(this.leftBarrier);
+                
+                this.rightBarrier = new THREE.Mesh(barrierGeometry, barrierMaterial);
+                this.rightBarrier.position.x = 5;
+                this.rightBarrier.position.z = 0;
+                this.rightBarrier.castShadow = true;
+                this.rightBarrier.receiveShadow = true;
+                this.scene.add(this.rightBarrier);
+            }
+
+            createPlayerMotorcycle() {
+                // Corpo da moto
+                const bodyGeometry = new THREE.BoxGeometry(1, 0.5, 2);
+                const bodyMaterial = new THREE.MeshStandardMaterial({ 
+                    color: 0xFF4444,
+                    metalness: 0.7,
+                    roughness: 0.3
+                });
+                this.player = new THREE.Mesh(bodyGeometry, bodyMaterial);
+                this.player.position.y = 0.5;
+                this.player.position.z = 0; // Posição Z inicial do jogador
+                this.player.castShadow = true;
+                
+                // Para-brisa
+                const windshieldGeometry = new THREE.CylinderGeometry(0.3, 0.5, 0.5, 8, 1, true);
+                const windshieldMaterial = new THREE.MeshStandardMaterial({
+                    color: 0x87CEEB,
+                    transparent: true,
+                    opacity: 0.7
+                });
+                this.windshield = new THREE.Mesh(windshieldGeometry, windshieldMaterial);
+                this.windshield.rotation.x = Math.PI / 2;
+                this.windshield.position.y = 0.8;
+                this.windshield.position.z = -0.3;
+                this.player.add(this.windshield);
+                
+                // Rodas
+                const wheelGeometry = new THREE.CylinderGeometry(0.3, 0.3, 0.2, 16);
+                const wheelMaterial = new THREE.MeshStandardMaterial({ color: 0x111111 });
+                
+                this.backWheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+                this.backWheel.rotation.x = Math.PI / 2;
+                this.backWheel.position.y = 0.2;
+                this.backWheel.position.z = 0.8;
+                this.player.add(this.backWheel);
+                
+                this.frontWheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+                this.frontWheel.rotation.x = Math.PI / 2;
+                this.frontWheel.position.y = 0.2;
+                this.frontWheel.position.z = -0.8;
+                this.player.add(this.frontWheel);
+                
+                this.scene.add(this.player);
+            }
+
+            // --- CÓDIGO MODIFICADO PARA USAR IMAGENS ---
+            loadObstacleTextures() {
+                const loader = new THREE.TextureLoader();
+                const imageFiles = [
+                    'imagen1.png', 'imagen2.png', 'imagen3.png', 'imagen4.png', 'imagen5.png',
+                    'imagen6.png', 'imagen7.png', 'imagen8.png', 'imagen9.png', 'imagen10.png'
+                ];
+                
+                const promises = imageFiles.map(file => {
+                    return new Promise((resolve, reject) => {
+                        loader.load(file, 
+                            (texture) => {
+                                this.obstacleTextures.push(texture);
+                                resolve();
+                            },
+                            undefined, // onProgress callback
+                            (error) => {
+                                console.error('Erro ao carregar textura:', file, error);
+                                reject(error);
+                            }
+                        );
+                    });
+                });
+                
+                return Promise.all(promises);
+            }
+
+            createObstaclesPool() {
+                const obstacleGeometry = new THREE.PlaneGeometry(1.5, 2.5); // Ajustado para ser um pouco mais alto que largo
+                
+                for (let i = 0; i < this.obstacleTextures.length; i++) {
+                    const texture = this.obstacleTextures[i];
+                    texture.encoding = THREE.sRGBEncoding;
+                    
+                    const obstacleMaterial = new THREE.MeshBasicMaterial({ 
+                        map: texture,
+                        side: THREE.DoubleSide,
+                        transparent: true,
+                        alphaTest: 0.5 // Ignora pixels transparentes na renderização
+                    });
+
+                    const obstacle = new THREE.Mesh(obstacleGeometry, obstacleMaterial);
+                    obstacle.rotation.x = -Math.PI / 2; // Gira para ficar em pé na pista
+                    obstacle.visible = false;
+                    obstacle.castShadow = true;
+                    this.scene.add(obstacle);
+                    this.obstaclesPool.push({ mesh: obstacle, type: 'image' });
+                }
+            }
+
+            // --- RESTO DO CÓDIGO INALTERADO ---
+            
+            createParticles() {
+                const particleGeometry = new THREE.SphereGeometry(0.05, 8, 8);
+                const particleMaterial = new THREE.MeshStandardMaterial({
+                    color: 0xFFD700,
+                    emissive: 0xFFA500,
+                    emissiveIntensity: 0.5
+                });
+                
+                for (let i = 0; i < 50; i++) {
+                    const particle = new THREE.Mesh(particleGeometry, particleMaterial.clone());
+                    particle.visible = false;
+                    this.scene.add(particle);
+                    this.particles.push(particle);
+                }
+            }
+
+            initializeElements() {
+                this.elements = {
+                    score: document.getElementById('score'),
+                    speed: document.getElementById('speed'),
+                    level: document.getElementById('level'),
+                    gameOver: document.getElementById('gameOver'),
+                    finalScore: document.getElementById('finalScore'),
+                    finalLevel: document.getElementById('finalLevel'),
+                    maxSpeed: document.getElementById('maxSpeed'),
+                    obstaclesAvoided: document.getElementById('obstaclesAvoided'),
+                    restartBtn: document.getElementById('restartBtn'),
+                    boostBar: document.getElementById('boostBar'),
+                    minimapRoad: document.getElementById('minimapRoad'),
+                    minimapPlayer: document.getElementById('minimapPlayer'),
+                    leftBtn: document.getElementById('leftBtn'),
+                    rightBtn: document.getElementById('rightBtn'),
+                    boostBtn: document.getElementById('boostBtn')
+                };
+            }
+
+            initializeState() {
+                this.state = {
+                    playerPosition: 0, // Posição X em coordenadas do mundo
+                    obstacles: [],
+                    score: 0,
+                    level: 1,
+                    speed: 0.1, // Reduzindo a velocidade base para uma jogabilidade mais suave
+                    maxSpeedReached: 0,
+                    obstaclesAvoided: 0,
+                    gameRunning: true,
+                    boostActive: false,
+                    boostCharge: 100,
+                    lastObstacleTime: 0,
+                    lastBoostTime: 0,
+                    gameStartTime: Date.now(),
+                    distanceTraveled: 0
+                };
+
+                this.config = {
+                    lanes: [-3, -1, 1, 3], // Posições X das faixas
+                    playerSpeed: 0.1,
+                    maxSpeed: 0.3,
+                    obstacleSpawnRate: 0.02,
+                    levelUpScore: 200,
+                    boostDuration: 2000,
+                    boostCooldown: 5000,
+                    boostSpeedMultiplier: 1.5,
+                    obstacleSpeed: 0.2 // Nova configuração para a velocidade dos obstáculos
+                };
+            }
+
+            initializeControls() {
+                this.controls = {
+                    keys: {},
+                    touch: {
+                        left: false,
+                        right: false,
+                        boost: false
+                    }
+                };
+
+                // Controles de teclado
+                document.addEventListener('keydown', (e) => {
+                    this.controls.keys[e.key] = true;
+                    if (e.key === ' ' && this.state.boostCharge >= 100 && !this.state.boostActive) {
+                        this.activateBoost();
+                    }
+                });
+
+                document.addEventListener('keyup', (e) => {
+                    this.controls.keys[e.key] = false;
+                });
+
+                // Controles de toque
+                this.elements.leftBtn.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    this.controls.touch.left = true;
+                });
+
+                this.elements.leftBtn.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    this.controls.touch.left = false;
+                });
+
+                this.elements.rightBtn.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    this.controls.touch.right = true;
+                });
+
+                this.elements.rightBtn.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    this.controls.touch.right = false;
+                });
+
+                this.elements.boostBtn.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    if (this.state.boostCharge >= 100 && !this.state.boostActive) {
+                        this.activateBoost();
+                    }
+                });
+
+                // Botão de reiniciar
+                this.elements.restartBtn.addEventListener('click', () => this.restart());
+            }
+
+            onWindowResize() {
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+
+            updatePlayerMovement() {
+                if (!this.state.gameRunning) return;
+
+                const moveSpeed = this.state.boostActive ? 
+                    this.config.playerSpeed * this.config.boostSpeedMultiplier : 
+                    this.config.playerSpeed;
+
+                // Controles de teclado
+                if (this.controls.keys['ArrowLeft'] || this.controls.keys['a'] || this.controls.keys['A'] || this.controls.touch.left) {
+                    this.state.playerPosition = Math.max(-4.5, this.state.playerPosition - moveSpeed);
+                }
+                if (this.controls.keys['ArrowRight'] || this.controls.keys['d'] || this.controls.keys['D'] || this.controls.touch.right) {
+                    this.state.playerPosition = Math.min(4.5, this.state.playerPosition + moveSpeed);
+                }
+
+                // Atualiza posição da moto
+                this.player.position.x = this.state.playerPosition;
+                this.elements.minimapPlayer.style.left = `${50 + (this.state.playerPosition / 4.5) * 25}%`;
+                
+                // Animação das rodas
+                const wheelSpeed = this.state.speed * (this.state.boostActive ? 2 : 1);
+                this.backWheel.rotation.z += wheelSpeed;
+                this.frontWheel.rotation.z += wheelSpeed;
+            }
+
+            activateBoost() {
+                if (this.state.boostActive || this.state.boostCharge < 100) return;
+                
+                this.state.boostActive = true;
+                this.state.lastBoostTime = Date.now();
+                this.state.boostCharge = 0;
+                
+                // Efeito visual de boost
+                this.player.material.emissive = new THREE.Color(0xFF4500);
+                this.player.material.emissiveIntensity = 0.5;
+                
+                setTimeout(() => {
+                    this.state.boostActive = false;
+                    this.player.material.emissiveIntensity = 0;
+                }, this.config.boostDuration);
+            }
+
+            updateBoost() {
+                const now = Date.now();
+                const timeSinceLastBoost = now - this.state.lastBoostTime;
+                
+                if (!this.state.boostActive && timeSinceLastBoost > this.config.boostCooldown) {
+                    this.state.boostCharge = Math.min(100, this.state.boostCharge + 0.5);
+                    this.elements.boostBar.style.width = `${this.state.boostCharge}%`;
+                }
+            }
+
+            // --- CÓDIGO MODIFICADO PARA USAR IMAGENS ---
+            spawnObstacle() {
+                if (!this.state.gameRunning || this.obstaclesPool.length === 0) return;
+                
+                const now = Date.now();
+                const timeSinceLastObstacle = now - this.state.lastObstacleTime;
+                const minSpawnTime = Math.max(500, 1500 - (this.state.level * 100));
+                
+                if (timeSinceLastObstacle < minSpawnTime) return;
+                if (Math.random() > this.config.obstacleSpawnRate + (this.state.level * 0.005)) return;
+
+                // Encontra um obstáculo disponível no pool (agora são todos de imagem)
+                const availableObstacles = this.obstaclesPool.filter(o => !o.mesh.visible);
+                if (availableObstacles.length === 0) return;
+                
+                const randomIndex = Math.floor(Math.random() * availableObstacles.length);
+                const obstacle = availableObstacles[randomIndex].mesh;
+                obstacle.visible = true;
+                
+                const lane = this.config.lanes[Math.floor(Math.random() * this.config.lanes.length)];
+                obstacle.position.x = lane;
+                obstacle.position.z = -100;
+                obstacle.position.y = 1.25; // Altura do centro do plano
+
+                // Adiciona ao minimapa
+                const minimapObstacle = document.createElement('div');
+                minimapObstacle.className = 'minimap-obstacle';
+                minimapObstacle.style.left = `${50 + (lane / 4.5) * 25}%`;
+                minimapObstacle.style.top = '0px';
+                this.elements.minimapRoad.appendChild(minimapObstacle);
+
+                this.state.obstacles.push({
+                    mesh: obstacle,
+                    x: lane,
+                    z: -100,
+                    speed: this.state.speed + Math.random() * 0.1,
+                    minimapElement: minimapObstacle
+                });
+
+                this.state.lastObstacleTime = now;
+            }
+
+            updateObstacles() {
+                if (!this.state.gameRunning) return;
+                
+                this.state.obstacles.forEach((obstacle, index) => {
+                    // Os obstáculos se movem para a frente
+                    obstacle.z += this.state.speed + obstacle.speed;
+                    obstacle.mesh.position.z = obstacle.z;
+                    
+                    // Atualiza minimapa
+                    const minimapZ = ((obstacle.z + 100) / 200) * 120;
+                    obstacle.minimapElement.style.top = `${120 - minimapZ}px`;
+                    
+                    // Remove obstáculos que passaram do jogador
+                    if (obstacle.z > 10) {
+                        obstacle.mesh.visible = false;
+                        obstacle.minimapElement.remove();
+                        this.state.obstacles.splice(index, 1);
+                        this.state.obstaclesAvoided++;
+                        this.updateScore(15);
+                        this.spawnParticles(obstacle.x, 10);
+                    }
+                    
+                    // Verifica colisão
+                    if (this.checkCollision(obstacle)) {
+                        this.gameOver();
+                    }
+                });
+            }
+
+            checkCollision(obstacle) {
+                const playerX = this.player.position.x;
+                const playerZ = this.player.position.z;
+                const playerWidth = 1;
+                const playerLength = 2;
+                
+                const obstacleX = obstacle.mesh.position.x;
+                const obstacleZ = obstacle.mesh.position.z;
+                const obstacleWidth = 1.5; // Largura do novo plano de imagem
+                const obstacleLength = 0.5; // Profundidade do plano é 0.5, para colisão ajustamos para algo mais razoável
+                
+                // Verifica colisão usando bounding boxes
+                return Math.abs(playerX - obstacleX) < (playerWidth/2 + obstacleWidth/2) &&
+                       Math.abs(playerZ - obstacleZ) < (playerLength/2 + obstacleLength/2);
+            }
+            
+            // --- RESTO DO CÓDIGO INALTERADO ---
+
+            spawnParticles(x, z) {
+                const particlesToSpawn = 5;
+                let spawned = 0;
+                
+                for (let i = 0; i < this.particles.length && spawned < particlesToSpawn; i++) {
+                    if (!this.particles[i].visible) {
+                        this.particles[i].position.set(x, 0.5, z);
+                        this.particles[i].visible = true;
+                        
+                        // Configura animação da partícula
+                        const speedX = (Math.random() - 0.5) * 0.2;
+                        const speedY = Math.random() * 0.1;
+                        const speedZ = Math.random() * 0.1;
+                        
+                        const particle = this.particles[i];
+                        const startTime = Date.now();
+                        
+                        const animateParticle = () => {
+                            const elapsed = Date.now() - startTime;
+                            const progress = elapsed / 1000;
+                            
+                            if (progress > 1 || !this.state.gameRunning) {
+                                particle.visible = false;
+                                return;
+                            }
+                            
+                            particle.position.x += speedX;
+                            particle.position.y += speedY;
+                            particle.position.z += speedZ;
+                            particle.scale.setScalar(1 - progress);
+                            
+                            requestAnimationFrame(animateParticle);
+                        };
+                        
+                        animateParticle();
+                        spawned++;
+                    }
+                }
+            }
+
+            updateScore(points) {
+                this.state.score += points;
+                this.elements.score.textContent = `Pontos: ${this.state.score}`;
+                
+                // Level up
+                const newLevel = Math.floor(this.state.score / this.config.levelUpScore) + 1;
+                if (newLevel > this.state.level) {
+                    this.state.level = newLevel;
+                    this.state.speed = Math.min(this.config.maxSpeed, this.state.speed + 0.05);
+                    this.elements.level.textContent = `Nível: ${this.state.level}`;
+                    
+                    // Boost automático no level up
+                    if (this.state.boostCharge >= 100) {
+                        this.activateBoost();
+                    } else {
+                        this.state.boostCharge = 100;
+                        this.elements.boostBar.style.width = '100%';
+                    }
+                }
+            }
+
+            updateHUD() {
+                const currentSpeed = Math.round(this.state.speed * 100);
+                this.state.maxSpeedReached = Math.max(this.state.maxSpeedReached, currentSpeed);
+                this.elements.speed.textContent = `Velocidade: ${currentSpeed} km/h`;
+                
+                // Atualiza barra de boost
+                if (!this.state.boostActive) {
+                    this.elements.boostBar.style.width = `${this.state.boostCharge}%`;
+                }
+            }
+
+            gameOver() {
+                this.state.gameRunning = false;
+                
+                // Efeito visual de colisão
+                this.player.material.color = new THREE.Color(0x888888);
+                this.player.material.emissive = new THREE.Color(0xFF0000);
+                this.player.material.emissiveIntensity = 0.5;
+                
+                // Atualiza estatísticas finais
+                this.elements.finalScore.textContent = this.state.score;
+                this.elements.finalLevel.textContent = this.state.level;
+                this.elements.maxSpeed.textContent = this.state.maxSpeedReached;
+                this.elements.obstaclesAvoided.textContent = this.state.obstaclesAvoided;
+                
+                // Mostra tela de game over com animação
+                setTimeout(() => {
+                    this.elements.gameOver.classList.add('show');
+                }, 500);
+            }
+
+            restart() {
+                // Limpa obstáculos
+                this.state.obstacles.forEach(obstacle => {
+                    obstacle.mesh.visible = false;
+                    if (obstacle.minimapElement && obstacle.minimapElement.parentNode) {
+                        obstacle.minimapElement.remove();
+                    }
+                });
+                
+                // Limpa partículas
+                this.particles.forEach(p => p.visible = false);
+                
+                // Reseta estado
+                this.initializeState();
+                
+                // Reseta moto do jogador
+                this.player.material.color = new THREE.Color(0xFF4444);
+                this.player.material.emissiveIntensity = 0;
+                this.player.position.x = 0;
+                this.player.position.z = 0;
+                
+                // Reseta interface
+                this.elements.score.textContent = 'Pontos: 0';
+                this.elements.speed.textContent = 'Velocidade: 0 km/h';
+                this.elements.level.textContent = 'Nível: 1';
+                this.elements.gameOver.classList.remove('show');
+                this.elements.boostBar.style.width = '100%';
+            }
+
+            updateCamera() {
+                // Camera segue o jogador com um leve atraso para suavidade
+                const targetX = this.player.position.x * 0.5;
+                const targetZ = this.player.position.z + 5; // Mantém a câmera atrás do jogador
+                
+                this.camera.position.x += (targetX - this.camera.position.x) * 0.1;
+                this.camera.position.z += (targetZ - this.camera.position.z) * 0.1;
+                this.camera.lookAt(this.player.position.x, 1, this.player.position.z);
+            }
+
+            animate() {
+                if (this.state.gameRunning) {
+                    // Reposiciona a pista para simular movimento infinito
+                    this.track.position.z += this.state.speed;
+                    this.leftBarrier.position.z += this.state.speed;
+                    this.rightBarrier.position.z += this.state.speed;
+                    
+                    if (this.track.position.z > 100) {
+                        this.track.position.z -= 200;
+                        this.leftBarrier.position.z -= 200;
+                        this.rightBarrier.position.z -= 200;
+                    }
+
+                    this.state.distanceTraveled += this.state.speed;
+                    
+                    // Pontuação baseada na distância percorrida
+                    if (Math.floor(this.state.distanceTraveled) % 10 === 0) {
+                        this.updateScore(1);
+                    }
+                }
+                
+                this.updatePlayerMovement();
+                this.spawnObstacle();
+                this.updateObstacles();
+                this.updateHUD();
+                this.updateBoost();
+                this.updateCamera();
+                
+                this.renderer.render(this.scene, this.camera);
+                requestAnimationFrame(() => this.animate());
+            }
+
+            start() {
+                this.animate();
+            }
+        }
+
+        // Inicializa o jogo quando a página carregar
+        window.addEventListener('load', () => {
+            const gameManager = new GameManager();
+        });
+    </script>
+</body>
+</html>
